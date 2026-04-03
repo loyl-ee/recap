@@ -1,9 +1,10 @@
 import { db } from "@/db";
-import { rm, sm, store } from "@/db/schema";
+import { rm } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { SignOutButton } from "@/components/sign-out-button";
 import { PromptCard } from "@/components/prompt-card";
 import { RecapForm } from "@/components/recap-form";
+import { StoreHistoryModal } from "@/components/store-history-modal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -14,6 +15,8 @@ import {
   getRecapAnswers,
   getPastRecaps,
   getPromptRules,
+  getOtherStoreRecaps,
+  getRegionStores,
 } from "@/app/actions/recap";
 import { generatePrompt } from "@/lib/prompts";
 import { detectPatterns } from "@/lib/patterns";
@@ -29,12 +32,15 @@ export async function SmView() {
     .limit(1);
 
   // Load all data in parallel
-  const [questions, currentRecap, pastRecaps, rules] = await Promise.all([
-    getTemplateQuestions(storeRecord.id, smRecord.id),
-    getCurrentRecap(smRecord.id, storeRecord.id),
-    getPastRecaps(smRecord.id),
-    rmRecord ? getPromptRules(rmRecord.id) : Promise.resolve([]),
-  ]);
+  const [questions, currentRecap, pastRecaps, rules, otherRecaps, regionStores] =
+    await Promise.all([
+      getTemplateQuestions(storeRecord.id, smRecord.id),
+      getCurrentRecap(smRecord.id, storeRecord.id),
+      getPastRecaps(smRecord.id),
+      rmRecord ? getPromptRules(rmRecord.id) : Promise.resolve([]),
+      getOtherStoreRecaps(storeRecord.regionId, storeRecord.id),
+      getRegionStores(storeRecord.regionId),
+    ]);
 
   // Get existing answers if there's a current recap
   const existingAnswers = currentRecap
@@ -59,6 +65,18 @@ export async function SmView() {
     patterns
   );
 
+  // Group other recaps by store
+  const otherRecapsByStore = new Map<
+    string,
+    (typeof otherRecaps)[number]
+  >();
+  for (const r of otherRecaps) {
+    otherRecapsByStore.set(r.storeId, r);
+  }
+
+  // Other stores (excluding mine)
+  const otherStores = regionStores.filter((s) => s.id !== storeRecord.id);
+
   return (
     <main className="flex-1 px-8 py-8 max-w-4xl mx-auto w-full">
       <header className="flex items-center justify-between mb-8">
@@ -71,7 +89,7 @@ export async function SmView() {
         <SignOutButton />
       </header>
 
-      {/* Prompt copy bar — patterns are embedded in the prompt, not shown as UI */}
+      {/* Prompt copy bar */}
       <div className="mb-6">
         <PromptCard prompt={prompt} />
       </div>
@@ -92,8 +110,8 @@ export async function SmView() {
 
       {/* Past recaps */}
       <Separator className="mb-8" />
-      <div>
-        <h2 className="mb-4">Past Recaps</h2>
+      <div className="mb-10">
+        <h2 className="mb-4">My Past Recaps</h2>
         {pastRecaps.length === 0 ? (
           <p className="text-muted-foreground">No past recaps yet.</p>
         ) : (
@@ -129,6 +147,70 @@ export async function SmView() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Other stores */}
+      <Separator className="mb-8" />
+      <div>
+        <h2 className="mb-4">Other Stores</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {otherStores.map((s) => {
+            const otherRecap = otherRecapsByStore.get(s.id);
+            return (
+              <StoreHistoryModal
+                key={s.id}
+                storeId={s.id}
+                storeName={s.name}
+              >
+                <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">{s.name}</CardTitle>
+                      <Badge
+                        variant={
+                          otherRecap?.status === "submitted"
+                            ? "default"
+                            : "secondary"
+                        }
+                        className="text-xs"
+                      >
+                        {otherRecap?.status ?? "pending"}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {otherRecap ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          by {otherRecap.smName}
+                        </p>
+                        {otherRecap.answers.slice(0, 1).map((a, i) => (
+                          <div key={i}>
+                            <p className="text-xs font-medium text-muted-foreground">
+                              {a.questionText}
+                            </p>
+                            <p className="text-sm line-clamp-2">
+                              {a.answerText || "—"}
+                            </p>
+                          </div>
+                        ))}
+                        {otherRecap.answers.length > 1 && (
+                          <p className="text-xs text-muted-foreground">
+                            +{otherRecap.answers.length - 1} more answers
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No recap this week
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </StoreHistoryModal>
+            );
+          })}
+        </div>
       </div>
     </main>
   );

@@ -215,3 +215,56 @@ export async function saveRecapAnswers(
 
   return existing;
 }
+
+// ── Cross-store visibility for SMs ──────────────────────────
+
+export async function getOtherStoreRecaps(regionId: string, myStoreId: string) {
+  const weekEnding = getCurrentWeekEnding();
+
+  const recaps = await db
+    .select({
+      recap: recap,
+      smName: sm.name,
+      storeName: store.name,
+    })
+    .from(recap)
+    .innerJoin(sm, eq(sm.id, recap.smId))
+    .innerJoin(store, eq(store.id, recap.storeId))
+    .where(
+      and(
+        eq(store.regionId, regionId),
+        eq(recap.weekEnding, weekEnding),
+        sql`${recap.storeId} != ${myStoreId}`
+      )
+    )
+    .orderBy(store.name);
+
+  const result = [];
+  for (const r of recaps) {
+    const answers = await db
+      .select({
+        answer: recapAnswer,
+        questionText: recapQuestion.questionText,
+      })
+      .from(recapAnswer)
+      .innerJoin(recapQuestion, eq(recapQuestion.id, recapAnswer.questionId))
+      .where(eq(recapAnswer.recapId, r.recap.id))
+      .orderBy(recapQuestion.sortOrder);
+
+    result.push({
+      ...r.recap,
+      smName: r.smName,
+      storeName: r.storeName,
+      answers: answers.map((a) => ({
+        questionText: a.questionText,
+        answerText: a.answer.answerText,
+      })),
+    });
+  }
+
+  return result;
+}
+
+export async function getRegionStores(regionId: string) {
+  return db.select().from(store).where(eq(store.regionId, regionId));
+}

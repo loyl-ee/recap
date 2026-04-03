@@ -26,11 +26,11 @@ export default function LoginPage() {
       redirect: false,
     });
 
-    setLoading(false);
-
     if (result?.error) {
+      setLoading(false);
       setError("Invalid email or password");
     } else {
+      // Keep loading=true through the redirect — don't drop it
       router.push("/");
       router.refresh();
     }
@@ -46,40 +46,46 @@ export default function LoginPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                className="h-11"
-              />
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <p className="text-sm text-muted-foreground">Signing you in...</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                className="h-11"
-              />
-            </div>
-            {error && (
-              <p className="text-sm text-destructive font-medium">{error}</p>
-            )}
-            <Button
-              type="submit"
-              className="w-full h-11 font-semibold"
-              disabled={loading}
-            >
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  className="h-11"
+                />
+              </div>
+              {error && (
+                <p className="text-sm text-destructive font-medium">{error}</p>
+              )}
+              <Button
+                type="submit"
+                className="w-full h-11 font-semibold"
+              >
+                Sign in
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </main>
