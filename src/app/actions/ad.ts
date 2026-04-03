@@ -126,18 +126,18 @@ export async function generateAdPrompt(adId: string) {
   const weekEnding = getCurrentWeekEnding();
 
   const lines: string[] = [];
-  lines.push("Market Overview Recap");
-  lines.push(`Week ending: ${weekEnding}`);
-  lines.push(`RMs: ${rms.length} | Total stores in market: estimated 25-30`);
+  lines.push(
+    `You are a business writing assistant helping an area director prepare a 5-minute market overview for the week ending ${weekEnding}. This market has ${rms.length} regional managers.`
+  );
   lines.push("");
 
   if (consolidated.length === 0) {
-    lines.push("No RM consolidated recaps submitted yet for this week.");
+    lines.push("No RM consolidated recaps have been submitted yet for this week. Let me know when they're in.");
     return lines.join("\n");
   }
 
   lines.push(
-    "Below are the consolidated recaps from your Regional Managers. Distill into a 5-minute market overview."
+    `I have ${consolidated.length} regional manager recap(s) below. Help me distill these into talking points I can present in 5 minutes. I need the big picture — what's the story of my market this week?`
   );
   lines.push("");
 
@@ -146,18 +146,20 @@ export async function generateAdPrompt(adId: string) {
     lines.push(c.summary || "(No summary yet)");
     if (c.storeRecaps.length > 0) {
       lines.push(
-        `Stores included: ${c.storeRecaps.map((s) => s.storeName).join(", ")}`
+        `Stores covered: ${c.storeRecaps.map((s) => s.storeName).join(", ")}`
       );
     }
     lines.push("");
   }
 
-  lines.push("Produce a 5-minute market overview covering:");
-  lines.push("1. Overall market performance and trend");
-  lines.push("2. Regional highlights and wins");
-  lines.push("3. Concerns or issues trending across the market");
-  lines.push("4. Strategic focus areas for next week");
-  lines.push("5. Any RM-specific callouts or follow-ups");
+  lines.push("Give me a 5-minute market overview structured as:");
+  lines.push("1. The headline — how did the market perform overall?");
+  lines.push("2. Wins — what should I celebrate or highlight?");
+  lines.push("3. Concerns — what's trending across regions that needs attention?");
+  lines.push("4. Strategic focus — what should we be driving next week?");
+  lines.push("5. RM callouts — any specific follow-ups I need to have?");
+  lines.push("");
+  lines.push("Write it as talking points I can speak from, not a report I'd read. Keep it tight.");
 
   return lines.join("\n");
 }

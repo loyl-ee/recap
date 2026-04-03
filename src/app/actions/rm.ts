@@ -310,18 +310,18 @@ export async function generateConsolidationPrompt(rmId: string) {
   const weekEnding = getCurrentWeekEnding();
 
   const lines: string[] = [];
-  lines.push(`Regional Consolidation Recap`);
-  lines.push(`Week ending: ${weekEnding}`);
-  lines.push(`Region: ${stores.length} stores`);
+  lines.push(
+    `You are a business writing assistant helping a regional manager consolidate weekly store recaps into a single regional summary for the week ending ${weekEnding}. This region has ${stores.length} stores.`
+  );
   lines.push("");
 
   if (storeRecaps.length === 0) {
-    lines.push("No store recaps submitted yet for this week.");
+    lines.push("No store recaps have been submitted yet for this week. Let me know when they're in and I'll help you consolidate.");
     return lines.join("\n");
   }
 
   lines.push(
-    "Below are the individual store recaps. Summarize key themes, highlight standout performance, flag concerns, and identify action items."
+    `I have ${storeRecaps.length} store recaps below. Help me synthesize these into a consolidated regional recap that my area director can read in under 2 minutes. Pull out the signal — what matters, what's trending, what needs attention.`
   );
   lines.push("");
 
@@ -335,11 +335,13 @@ export async function generateConsolidationPrompt(rmId: string) {
     lines.push("");
   }
 
-  lines.push("Please produce a consolidated summary covering:");
-  lines.push("1. Overall regional performance and trends");
-  lines.push("2. Standout stores or wins");
-  lines.push("3. Concerns or recurring issues across stores");
-  lines.push("4. Recommended actions or focus areas for next week");
+  lines.push("Produce a consolidated summary structured as:");
+  lines.push("1. Overall regional performance — the headline");
+  lines.push("2. Wins — standout stores or results worth calling out");
+  lines.push("3. Concerns — recurring issues, stores that need support, red flags");
+  lines.push("4. Focus for next week — what I should be driving across the region");
+  lines.push("");
+  lines.push("Be direct. Use specifics from the recaps. Don't pad it.");
 
   return lines.join("\n");
 }
