@@ -14,6 +14,8 @@ import {
   recapLineItem,
   promptRule,
   adNote,
+  rmNote,
+  rmSmNote,
 } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 
@@ -466,4 +468,87 @@ export async function getAvailableWeeks() {
     .orderBy(desc(recap.weekEnding));
 
   return weeks.map((w) => w.weekEnding);
+}
+
+// ── RM private notes (for consolidation) ────────────────────
+
+export async function saveRmNote(rmId: string, recapId: string, noteText: string) {
+  const session = await auth();
+  if (!session?.user || (session.user as any).role !== "rm") throw new Error("Unauthorized");
+
+  const [created] = await db
+    .insert(rmNote)
+    .values({ rmId, recapId, noteText })
+    .returning();
+  return created;
+}
+
+export async function getRmNotesForRecap(recapId: string) {
+  return db
+    .select()
+    .from(rmNote)
+    .where(eq(rmNote.recapId, recapId))
+    .orderBy(desc(rmNote.createdAt));
+}
+
+export async function getRmNotesForWeek(rmId: string, recapIds: string[]) {
+  if (recapIds.length === 0) return [];
+  return db
+    .select({
+      note: rmNote,
+      storeName: store.name,
+      smName: sm.name,
+    })
+    .from(rmNote)
+    .innerJoin(recap, eq(recap.id, rmNote.recapId))
+    .innerJoin(store, eq(store.id, recap.storeId))
+    .innerJoin(sm, eq(sm.id, recap.smId))
+    .where(
+      and(
+        eq(rmNote.rmId, rmId),
+        sql`${rmNote.recapId} IN ${recapIds}`
+      )
+    )
+    .orderBy(store.name, desc(rmNote.createdAt));
+}
+
+export async function deleteRmNote(noteId: string) {
+  const session = await auth();
+  if (!session?.user || (session.user as any).role !== "rm") throw new Error("Unauthorized");
+  await db.delete(rmNote).where(eq(rmNote.id, noteId));
+}
+
+// ── RM → SM notes (feedback visible to SM) ──────────────────
+
+export async function saveRmSmNote(rmId: string, recapId: string, noteText: string) {
+  const session = await auth();
+  if (!session?.user || (session.user as any).role !== "rm") throw new Error("Unauthorized");
+
+  const [created] = await db
+    .insert(rmSmNote)
+    .values({ rmId, recapId, noteText })
+    .returning();
+  return created;
+}
+
+export async function getRmSmNotesForRecap(recapId: string) {
+  return db
+    .select()
+    .from(rmSmNote)
+    .where(eq(rmSmNote.recapId, recapId))
+    .orderBy(desc(rmSmNote.createdAt));
+}
+
+export async function getSmFeedbackNotes(smId: string) {
+  return db
+    .select({
+      note: rmSmNote,
+      rmName: rm.name,
+      weekEnding: recap.weekEnding,
+    })
+    .from(rmSmNote)
+    .innerJoin(recap, eq(recap.id, rmSmNote.recapId))
+    .innerJoin(rm, eq(rm.id, rmSmNote.rmId))
+    .where(eq(recap.smId, smId))
+    .orderBy(desc(rmSmNote.createdAt));
 }

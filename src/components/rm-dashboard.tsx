@@ -7,6 +7,8 @@ import { QuestionBuilderModal } from "@/components/question-builder-modal";
 import { AdminModal } from "@/components/admin-modal";
 import { WeekNavigator } from "@/components/week-navigator";
 import { StoreHistoryModal } from "@/components/store-history-modal";
+import { StoreRecapExpanded } from "@/components/store-recap-expanded";
+import { RmNoteSummary } from "@/components/rm-note-summary";
 import { PatternFlag } from "@/components/pattern-flag";
 import {
   getRmContext,
@@ -17,6 +19,7 @@ import {
   generateConsolidationPrompt,
   getAllConsolidatedRecaps,
   getAvailableWeeks,
+  getRmNotesForWeek,
 } from "@/app/actions/rm";
 import { detectPatterns } from "@/lib/patterns";
 
@@ -46,6 +49,10 @@ export async function RmDashboard({ week }: { week?: string }) {
       getAllConsolidatedRecaps(weekEnding),
       isCurrentWeek ? generateConsolidationPrompt(rmRecord.id) : Promise.resolve(""),
     ]);
+
+  // Get RM's private notes for this week's recaps
+  const recapIds = storeRecaps.map((r) => r.id);
+  const weekNotes = await getRmNotesForWeek(rmRecord.id, recapIds);
 
   // Detect cross-store patterns
   const patterns = detectPatterns(
@@ -107,62 +114,85 @@ export async function RmDashboard({ week }: { week?: string }) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {stores.map((s) => {
             const storeRecap = storeStatusMap.get(s.id);
+
+            const cardContent = (
+              <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">{s.name}</CardTitle>
+                    <Badge
+                      variant={
+                        storeRecap?.status === "submitted"
+                          ? "default"
+                          : "secondary"
+                      }
+                      className="text-xs"
+                    >
+                      {storeRecap?.status ?? "pending"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {storeRecap ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        by {storeRecap.smName}
+                      </p>
+                      {storeRecap.answers.slice(0, 2).map((a, i) => (
+                        <div key={i}>
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {a.questionText}
+                          </p>
+                          <p className="text-sm line-clamp-2">
+                            {a.answerText || "—"}
+                          </p>
+                        </div>
+                      ))}
+                      {storeRecap.answers.length > 2 && (
+                        <p className="text-xs text-muted-foreground">
+                          +{storeRecap.answers.length - 2} more answers
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No recap submitted yet
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+
+            // If there's a recap, open the expanded view with notes. Otherwise, show history.
+            if (storeRecap) {
+              return (
+                <StoreRecapExpanded
+                  key={s.id}
+                  rmId={rmRecord.id}
+                  recap={storeRecap}
+                >
+                  {cardContent}
+                </StoreRecapExpanded>
+              );
+            }
+
             return (
               <StoreHistoryModal
                 key={s.id}
                 storeId={s.id}
                 storeName={s.name}
               >
-                <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{s.name}</CardTitle>
-                      <Badge
-                        variant={
-                          storeRecap?.status === "submitted"
-                            ? "default"
-                            : "secondary"
-                        }
-                        className="text-xs"
-                      >
-                        {storeRecap?.status ?? "pending"}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {storeRecap ? (
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">
-                          by {storeRecap.smName}
-                        </p>
-                        {storeRecap.answers.slice(0, 2).map((a, i) => (
-                          <div key={i}>
-                            <p className="text-xs font-medium text-muted-foreground">
-                              {a.questionText}
-                            </p>
-                            <p className="text-sm line-clamp-2">
-                              {a.answerText || "—"}
-                            </p>
-                          </div>
-                        ))}
-                        {storeRecap.answers.length > 2 && (
-                          <p className="text-xs text-muted-foreground">
-                            +{storeRecap.answers.length - 2} more answers
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No recap submitted yet
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
+                {cardContent}
               </StoreHistoryModal>
             );
           })}
         </div>
       </div>
+
+      {/* RM Notes Summary */}
+      {weekNotes.length > 0 && (
+        <RmNoteSummary notes={weekNotes} />
+      )}
 
       <Separator className="mb-8" />
 

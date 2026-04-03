@@ -18,6 +18,7 @@ import {
   getOtherStoreRecaps,
   getRegionStores,
 } from "@/app/actions/recap";
+import { getSmFeedbackNotes } from "@/app/actions/rm";
 import { generatePrompt } from "@/lib/prompts";
 import { detectPatterns } from "@/lib/patterns";
 
@@ -32,7 +33,7 @@ export async function SmView() {
     .limit(1);
 
   // Load all data in parallel
-  const [questions, currentRecap, pastRecaps, rules, otherRecaps, regionStores] =
+  const [questions, currentRecap, pastRecaps, rules, otherRecaps, regionStores, feedbackNotes] =
     await Promise.all([
       getTemplateQuestions(storeRecord.id, smRecord.id),
       getCurrentRecap(smRecord.id, storeRecord.id),
@@ -40,6 +41,7 @@ export async function SmView() {
       rmRecord ? getPromptRules(rmRecord.id) : Promise.resolve([]),
       getOtherStoreRecaps(storeRecord.regionId, storeRecord.id),
       getRegionStores(storeRecord.regionId),
+      getSmFeedbackNotes(smRecord.id),
     ]);
 
   // Get existing answers if there's a current recap
@@ -107,6 +109,29 @@ export async function SmView() {
           currentStatus={currentRecap?.status ?? null}
         />
       </div>
+
+      {/* RM Feedback */}
+      {feedbackNotes.length > 0 && (
+        <>
+          <Separator className="mb-8" />
+          <div className="mb-10">
+            <h2 className="mb-4">Notes from Your RM</h2>
+            <div className="space-y-3">
+              {feedbackNotes.map((fn) => (
+                <div
+                  key={fn.note.id}
+                  className="rounded-lg bg-primary/5 border border-primary/10 px-4 py-3"
+                >
+                  <p className="text-sm">{fn.note.noteText}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {fn.rmName} &mdash; Week ending {fn.weekEnding}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Past recaps */}
       <Separator className="mb-8" />

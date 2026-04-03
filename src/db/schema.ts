@@ -214,3 +214,31 @@ export const adNote = pgTable("ad_note", {
   noteText: text("note_text").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ── RM Notes (private, for consolidation) ──────────────────────
+
+export const rmNote = pgTable("rm_note", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  rmId: uuid("rm_id")
+    .references(() => rm.id)
+    .notNull(),
+  recapId: uuid("recap_id")
+    .references(() => recap.id, { onDelete: "cascade" })
+    .notNull(),
+  noteText: text("note_text").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── RM → SM Notes (feedback visible to SM) ─────────────────────
+
+export const rmSmNote = pgTable("rm_sm_note", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  rmId: uuid("rm_id")
+    .references(() => rm.id)
+    .notNull(),
+  recapId: uuid("recap_id")
+    .references(() => recap.id, { onDelete: "cascade" })
+    .notNull(),
+  noteText: text("note_text").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
