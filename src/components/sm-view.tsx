@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 import { SignOutButton } from "@/components/sign-out-button";
 import { PromptCard } from "@/components/prompt-card";
 import { RecapForm } from "@/components/recap-form";
-import { PatternFlag } from "@/components/pattern-flag";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -72,16 +71,7 @@ export async function SmView() {
         <SignOutButton />
       </header>
 
-      {/* Pattern flags */}
-      {patterns.length > 0 && (
-        <div className="mb-6 space-y-2">
-          {patterns.map((p) => (
-            <PatternFlag key={p.theme} pattern={p} />
-          ))}
-        </div>
-      )}
-
-      {/* Generated prompt */}
+      {/* Prompt copy bar — patterns are embedded in the prompt, not shown as UI */}
       <div className="mb-6">
         <PromptCard prompt={prompt} />
       </div>
