@@ -345,3 +345,125 @@ export async function generateConsolidationPrompt(rmId: string) {
 
   return lines.join("\n");
 }
+
+// ── Week-parameterized queries ──────────────────────────────
+
+export async function getStoreRecapsForWeekParam(storeIds: string[], weekEndingParam: string) {
+  if (storeIds.length === 0) return [];
+
+  const recaps = await db
+    .select({
+      recap: recap,
+      smName: sm.name,
+      storeName: store.name,
+    })
+    .from(recap)
+    .innerJoin(sm, eq(sm.id, recap.smId))
+    .innerJoin(store, eq(store.id, recap.storeId))
+    .where(
+      and(
+        sql`${recap.storeId} IN ${storeIds}`,
+        eq(recap.weekEnding, weekEndingParam)
+      )
+    );
+
+  const result = [];
+  for (const r of recaps) {
+    const answers = await db
+      .select({
+        answer: recapAnswer,
+        questionText: recapQuestion.questionText,
+      })
+      .from(recapAnswer)
+      .innerJoin(recapQuestion, eq(recapQuestion.id, recapAnswer.questionId))
+      .where(eq(recapAnswer.recapId, r.recap.id))
+      .orderBy(recapQuestion.sortOrder);
+
+    result.push({
+      ...r.recap,
+      smName: r.smName,
+      storeName: r.storeName,
+      answers: answers.map((a) => ({
+        questionText: a.questionText,
+        answerText: a.answer.answerText,
+      })),
+    });
+  }
+
+  return result;
+}
+
+// ── All RMs' consolidated recaps (cross-region visibility) ──
+
+export async function getAllConsolidatedRecaps(weekEndingParam: string) {
+  const recaps = await db
+    .select({
+      consolidated: consolidatedRecap,
+      rmName: rm.name,
+      rmEmail: rm.email,
+    })
+    .from(consolidatedRecap)
+    .innerJoin(rm, eq(rm.id, consolidatedRecap.rmId))
+    .where(eq(consolidatedRecap.weekEnding, weekEndingParam))
+    .orderBy(rm.name);
+
+  return recaps.map((r) => ({
+    ...r.consolidated,
+    rmName: r.rmName,
+    rmEmail: r.rmEmail,
+  }));
+}
+
+// ── Store recap history (drill-down) ────────────────────────
+
+export async function getStoreRecapHistory(storeId: string, limit = 8) {
+  const recaps = await db
+    .select({
+      recap: recap,
+      smName: sm.name,
+      storeName: store.name,
+    })
+    .from(recap)
+    .innerJoin(sm, eq(sm.id, recap.smId))
+    .innerJoin(store, eq(store.id, recap.storeId))
+    .where(eq(recap.storeId, storeId))
+    .orderBy(desc(recap.weekEnding))
+    .limit(limit);
+
+  const result = [];
+  for (const r of recaps) {
+    const answers = await db
+      .select({
+        answer: recapAnswer,
+        questionText: recapQuestion.questionText,
+      })
+      .from(recapAnswer)
+      .innerJoin(recapQuestion, eq(recapQuestion.id, recapAnswer.questionId))
+      .where(eq(recapAnswer.recapId, r.recap.id))
+      .orderBy(recapQuestion.sortOrder);
+
+    result.push({
+      ...r.recap,
+      smName: r.smName,
+      storeName: r.storeName,
+      answers: answers.map((a) => ({
+        questionText: a.questionText,
+        answerText: a.answer.answerText,
+      })),
+    });
+  }
+
+  return result;
+}
+
+// ── Available weeks ─────────────────────────────────────────
+
+export async function getAvailableWeeks() {
+  const weeks = await db
+    .select({ weekEnding: recap.weekEnding })
+    .from(recap)
+    .groupBy(recap.weekEnding)
+    .orderBy(desc(recap.weekEnding));
+
+  return weeks.map((w) => w.weekEnding);
+}
