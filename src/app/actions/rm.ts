@@ -311,6 +311,10 @@ export async function generateConsolidationPrompt(rmId: string) {
   const storeRecaps = await getStoreRecapsForWeek(storeIds);
   const weekEnding = getCurrentWeekEnding();
 
+  // Get RM's private notes for these recaps
+  const recapIds = storeRecaps.map((r) => r.id);
+  const myNotes = recapIds.length > 0 ? await getRmNotesForWeek(rmId, recapIds) : [];
+
   const lines: string[] = [];
   lines.push(
     `You are a business writing assistant helping a regional manager consolidate weekly store recaps into a single regional summary for the week ending ${weekEnding}. This region has ${stores.length} stores.`
@@ -334,6 +338,17 @@ export async function generateConsolidationPrompt(rmId: string) {
       lines.push(`A: ${a.answerText || "—"}`);
       lines.push("");
     }
+
+    // Include RM's notes for this store
+    const storeNotes = myNotes.filter((n) => n.note.recapId === r.id);
+    if (storeNotes.length > 0) {
+      lines.push("MY NOTES ON THIS STORE:");
+      for (const n of storeNotes) {
+        lines.push(`• ${n.note.noteText}`);
+      }
+      lines.push("");
+    }
+
     lines.push("");
   }
 
@@ -342,6 +357,8 @@ export async function generateConsolidationPrompt(rmId: string) {
   lines.push("2. Wins — standout stores or results worth calling out");
   lines.push("3. Concerns — recurring issues, stores that need support, red flags");
   lines.push("4. Focus for next week — what I should be driving across the region");
+  lines.push("");
+  lines.push("Pay special attention to MY NOTES — these are observations I made while reviewing each store. Weave them into the summary where relevant.");
   lines.push("");
   lines.push("Be direct. Use specifics from the recaps. Don't pad it.");
 

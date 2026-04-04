@@ -229,6 +229,19 @@ export const rmNote = pgTable("rm_note", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ── AD Market Recap ────────────────────────────────────────────
+
+export const adRecap = pgTable("ad_recap", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  adId: uuid("ad_id")
+    .references(() => ad.id)
+    .notNull(),
+  weekEnding: date("week_ending").notNull(),
+  summary: text("summary"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ── RM → SM Notes (feedback visible to SM) ─────────────────────
 
 export const rmSmNote = pgTable("rm_sm_note", {

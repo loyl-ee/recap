@@ -13,6 +13,7 @@ import {
   recapLineItem,
   store,
   sm,
+  adRecap,
 } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 
@@ -162,4 +163,43 @@ export async function generateAdPrompt(adId: string) {
   lines.push("Write it as talking points I can speak from, not a report I'd read. Keep it tight.");
 
   return lines.join("\n");
+}
+
+// ── AD Market Recap persistence ─────────────────────────────
+
+export async function getAdRecap(adId: string) {
+  const weekEnding = getCurrentWeekEnding();
+  const [existing] = await db
+    .select()
+    .from(adRecap)
+    .where(and(eq(adRecap.adId, adId), eq(adRecap.weekEnding, weekEnding)))
+    .limit(1);
+  return existing ?? null;
+}
+
+export async function saveAdRecap(adId: string, summary: string) {
+  const session = await auth();
+  if (!session?.user || (session.user as any).role !== "ad") throw new Error("Unauthorized");
+
+  const weekEnding = getCurrentWeekEnding();
+
+  const [existing] = await db
+    .select()
+    .from(adRecap)
+    .where(and(eq(adRecap.adId, adId), eq(adRecap.weekEnding, weekEnding)))
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(adRecap)
+      .set({ summary, updatedAt: new Date() })
+      .where(eq(adRecap.id, existing.id));
+    return existing;
+  }
+
+  const [created] = await db
+    .insert(adRecap)
+    .values({ adId, weekEnding, summary })
+    .returning();
+  return created;
 }

@@ -10,6 +10,7 @@ import {
   getAdRms,
   getRmConsolidatedRecaps,
   generateAdPrompt,
+  getAdRecap,
 } from "@/app/actions/ad";
 
 export async function AdOverview() {
@@ -17,9 +18,10 @@ export async function AdOverview() {
   const rms = await getAdRms(adRecord.id);
   const rmIds = rms.map((r) => r.id);
 
-  const [consolidated, adPrompt] = await Promise.all([
+  const [consolidated, adPrompt, existingRecap] = await Promise.all([
     getRmConsolidatedRecaps(rmIds),
     generateAdPrompt(adRecord.id),
+    getAdRecap(adRecord.id),
   ]);
 
   const weekEnding = (() => {
@@ -142,7 +144,7 @@ export async function AdOverview() {
 
         {/* AD Market Recap */}
         <div>
-          <AdMarketRecapForm adId={adRecord.id} weekEnding={weekEnding} />
+          <AdMarketRecapForm adId={adRecord.id} weekEnding={weekEnding} existingSummary={existingRecap?.summary ?? ""} />
         </div>
       </div>
     </main>
