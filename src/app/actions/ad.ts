@@ -1,7 +1,7 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
+import { requireRole } from "@/lib/session";
 import {
   ad,
   rm,
@@ -16,27 +16,15 @@ import {
   adRecap,
 } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-
-function getCurrentWeekEnding(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const daysUntilSunday = day === 0 ? 0 : 7 - day;
-  const sunday = new Date(now);
-  sunday.setDate(now.getDate() + daysUntilSunday);
-  return sunday.toISOString().split("T")[0];
-}
+import { getCurrentWeekEnding } from "@/lib/utils/date";
 
 export async function getAdContext() {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "ad") {
-    throw new Error("Unauthorized");
-  }
-  const entityId = (session.user as any).entityId;
+  const user = await requireRole("ad");
 
   const [adRecord] = await db
     .select()
     .from(ad)
-    .where(eq(ad.id, entityId))
+    .where(eq(ad.id, user.entityId))
     .limit(1);
 
   if (!adRecord) throw new Error("AD not found");
@@ -107,10 +95,7 @@ export async function saveAdNote(
   consolidatedRecapId: string,
   noteText: string
 ) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "ad") {
-    throw new Error("Unauthorized");
-  }
+  await requireRole("ad");
 
   const [created] = await db
     .insert(adNote)
@@ -178,8 +163,7 @@ export async function getAdRecap(adId: string) {
 }
 
 export async function saveAdRecap(adId: string, summary: string) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "ad") throw new Error("Unauthorized");
+  await requireRole("ad");
 
   const weekEnding = getCurrentWeekEnding();
 

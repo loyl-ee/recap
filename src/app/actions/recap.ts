@@ -1,7 +1,7 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
+import { requireRole } from "@/lib/session";
 import {
   recap,
   recapAnswer,
@@ -12,24 +12,11 @@ import {
   store,
 } from "@/db/schema";
 import { eq, and, desc, lte, isNull, or, sql } from "drizzle-orm";
-
-function getCurrentWeekEnding(): string {
-  const now = new Date();
-  const day = now.getDay();
-  // Week ending = next Sunday (or today if Sunday)
-  const daysUntilSunday = day === 0 ? 0 : 7 - day;
-  const sunday = new Date(now);
-  sunday.setDate(now.getDate() + daysUntilSunday);
-  return sunday.toISOString().split("T")[0];
-}
+import { getCurrentWeekEnding } from "@/lib/utils/date";
 
 export async function getSmContext() {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "sm") {
-    throw new Error("Unauthorized");
-  }
-
-  const entityId = (session.user as any).entityId;
+  const user = await requireRole("sm");
+  const entityId = user.entityId;
 
   // Get SM with store info
   const [smRecord] = await db
@@ -168,10 +155,7 @@ export async function saveRecapAnswers(
   answers: { questionId: string; answerText: string }[],
   status: "draft" | "submitted"
 ) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "sm") {
-    throw new Error("Unauthorized");
-  }
+  await requireRole("sm");
 
   const weekEnding = getCurrentWeekEnding();
 

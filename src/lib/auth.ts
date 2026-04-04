@@ -41,8 +41,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     jwt({ token, user }) {
       if (user) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const u = user as any;
+        const u = user as unknown as { role: string; entityId: string };
         token.role = u.role;
         token.entityId = u.entityId;
       }
@@ -51,8 +50,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub!;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const s = session.user as any;
+        const s = session.user as unknown as Record<string, unknown>;
         s.role = token.role;
         s.entityId = token.entityId;
       }

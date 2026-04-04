@@ -1,7 +1,7 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
+import { requireRole } from "@/lib/session";
 import {
   rm,
   store,
@@ -18,27 +18,15 @@ import {
   rmSmNote,
 } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-
-function getCurrentWeekEnding(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const daysUntilSunday = day === 0 ? 0 : 7 - day;
-  const sunday = new Date(now);
-  sunday.setDate(now.getDate() + daysUntilSunday);
-  return sunday.toISOString().split("T")[0];
-}
+import { getCurrentWeekEnding } from "@/lib/utils/date";
 
 export async function getRmContext() {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "rm") {
-    throw new Error("Unauthorized");
-  }
-  const entityId = (session.user as any).entityId;
+  const user = await requireRole("rm");
 
   const [rmRecord] = await db
     .select()
     .from(rm)
-    .where(eq(rm.id, entityId))
+    .where(eq(rm.id, user.entityId))
     .limit(1);
 
   if (!rmRecord) throw new Error("RM not found");
@@ -125,10 +113,7 @@ export async function saveConsolidatedRecap(
   status: "draft" | "submitted",
   recapIds: string[]
 ) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "rm") {
-    throw new Error("Unauthorized");
-  }
+  await requireRole("rm");
 
   const weekEnding = getCurrentWeekEnding();
 
@@ -221,10 +206,7 @@ export async function createTemplate(data: {
   storeId?: string;
   smId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "rm") {
-    throw new Error("Unauthorized");
-  }
+  await requireRole("rm");
 
   const [created] = await db
     .insert(recapTemplate)
@@ -245,10 +227,7 @@ export async function addQuestion(data: {
   sortOrder: number;
   required: boolean;
 }) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "rm") {
-    throw new Error("Unauthorized");
-  }
+  await requireRole("rm");
 
   const [created] = await db
     .insert(recapQuestion)
@@ -259,10 +238,7 @@ export async function addQuestion(data: {
 }
 
 export async function deleteQuestion(questionId: string) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "rm") {
-    throw new Error("Unauthorized");
-  }
+  await requireRole("rm");
 
   await db.delete(recapQuestion).where(eq(recapQuestion.id, questionId));
 }
@@ -280,10 +256,7 @@ export async function savePromptRule(data: {
   ruleType: string;
   value: string;
 }) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "rm") {
-    throw new Error("Unauthorized");
-  }
+  await requireRole("rm");
 
   const [created] = await db
     .insert(promptRule)
@@ -294,10 +267,7 @@ export async function savePromptRule(data: {
 }
 
 export async function deletePromptRule(ruleId: string) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "rm") {
-    throw new Error("Unauthorized");
-  }
+  await requireRole("rm");
 
   await db.delete(promptRule).where(eq(promptRule.id, ruleId));
 }
@@ -490,8 +460,7 @@ export async function getAvailableWeeks() {
 // ── RM private notes (for consolidation) ────────────────────
 
 export async function saveRmNote(rmId: string, recapId: string, noteText: string) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "rm") throw new Error("Unauthorized");
+  await requireRole("rm");
 
   const [created] = await db
     .insert(rmNote)
@@ -530,16 +499,14 @@ export async function getRmNotesForWeek(rmId: string, recapIds: string[]) {
 }
 
 export async function deleteRmNote(noteId: string) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "rm") throw new Error("Unauthorized");
+  await requireRole("rm");
   await db.delete(rmNote).where(eq(rmNote.id, noteId));
 }
 
 // ── RM → SM notes (feedback visible to SM) ──────────────────
 
 export async function saveRmSmNote(rmId: string, recapId: string, noteText: string) {
-  const session = await auth();
-  if (!session?.user || (session.user as any).role !== "rm") throw new Error("Unauthorized");
+  await requireRole("rm");
 
   const [created] = await db
     .insert(rmSmNote)

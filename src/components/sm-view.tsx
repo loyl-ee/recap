@@ -4,9 +4,8 @@ import { eq } from "drizzle-orm";
 import { SignOutButton } from "@/components/sign-out-button";
 import { PromptCard } from "@/components/prompt-card";
 import { RecapForm } from "@/components/recap-form";
-import { StoreHistoryModal } from "@/components/store-history-modal";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { PastRecapsList } from "@/components/past-recaps-list";
+import { OtherStoresGrid } from "@/components/other-stores-grid";
 import { Separator } from "@/components/ui/separator";
 import {
   getSmContext,
@@ -21,18 +20,17 @@ import {
 import { getSmFeedbackNotes } from "@/app/actions/rm";
 import { generatePrompt } from "@/lib/prompts";
 import { detectPatterns } from "@/lib/patterns";
+import { getCurrentWeekEnding } from "@/lib/utils/date";
 
 export async function SmView() {
   const { sm: smRecord, store: storeRecord } = await getSmContext();
 
-  // Find the RM for this store's region to get prompt rules
   const [rmRecord] = await db
     .select()
     .from(rm)
     .where(eq(rm.regionId, storeRecord.regionId))
     .limit(1);
 
-  // Load all data in parallel
   const [questions, currentRecap, pastRecaps, rules, otherRecaps, regionStores, feedbackNotes] =
     await Promise.all([
       getTemplateQuestions(storeRecord.id, smRecord.id),
@@ -44,39 +42,15 @@ export async function SmView() {
       getSmFeedbackNotes(smRecord.id),
     ]);
 
-  // Get existing answers if there's a current recap
   const existingAnswers = currentRecap
     ? await getRecapAnswers(currentRecap.id)
     : [];
 
-  // Detect patterns from past recaps
   const patterns = detectPatterns(pastRecaps);
+  const weekEndingStr = getCurrentWeekEnding();
+  const prompt = generatePrompt(storeRecord.name, weekEndingStr, questions, rules, patterns);
 
-  // Generate the prompt
-  const weekEnding = new Date();
-  const day = weekEnding.getDay();
-  const daysUntilSunday = day === 0 ? 0 : 7 - day;
-  weekEnding.setDate(weekEnding.getDate() + daysUntilSunday);
-  const weekEndingStr = weekEnding.toISOString().split("T")[0];
-
-  const prompt = generatePrompt(
-    storeRecord.name,
-    weekEndingStr,
-    questions,
-    rules,
-    patterns
-  );
-
-  // Group other recaps by store
-  const otherRecapsByStore = new Map<
-    string,
-    (typeof otherRecaps)[number]
-  >();
-  for (const r of otherRecaps) {
-    otherRecapsByStore.set(r.storeId, r);
-  }
-
-  // Other stores (excluding mine)
+  const otherRecapsByStore = new Map(otherRecaps.map((r) => [r.storeId, r]));
   const otherStores = regionStores.filter((s) => s.id !== storeRecord.id);
 
   return (
@@ -91,12 +65,10 @@ export async function SmView() {
         <SignOutButton />
       </header>
 
-      {/* Prompt copy bar */}
       <div className="mb-6">
         <PromptCard prompt={prompt} />
       </div>
 
-      {/* Recap entry form */}
       <div className="mb-10">
         <RecapForm
           smId={smRecord.id}
@@ -110,11 +82,10 @@ export async function SmView() {
         />
       </div>
 
-      {/* RM Feedback */}
       {feedbackNotes.length > 0 && (
         <>
           <Separator className="mb-8" />
-          <div className="mb-10">
+          <section className="mb-10" aria-label="RM feedback">
             <h2 className="mb-4">Notes from Your RM</h2>
             <div className="space-y-3">
               {feedbackNotes.map((fn) => (
@@ -129,114 +100,21 @@ export async function SmView() {
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         </>
       )}
 
-      {/* Past recaps */}
       <Separator className="mb-8" />
-      <div className="mb-10">
+      <section className="mb-10" aria-label="Past recaps">
         <h2 className="mb-4">My Past Recaps</h2>
-        {pastRecaps.length === 0 ? (
-          <p className="text-muted-foreground">No past recaps yet.</p>
-        ) : (
-          <div className="space-y-4">
-            {pastRecaps.map((r) => (
-              <Card key={r.id} className="shadow-sm">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">
-                      Week ending {r.weekEnding}
-                    </CardTitle>
-                    <Badge
-                      variant={
-                        r.status === "submitted" ? "default" : "secondary"
-                      }
-                      className="text-xs"
-                    >
-                      {r.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {r.answers.map((a, i) => (
-                    <div key={i}>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">
-                        {a.questionText}
-                      </p>
-                      <p className="text-sm">{a.answerText || "—"}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+        <PastRecapsList recaps={pastRecaps} />
+      </section>
 
-      {/* Other stores */}
       <Separator className="mb-8" />
-      <div>
+      <section aria-label="Other stores">
         <h2 className="mb-4">Other Stores</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {otherStores.map((s) => {
-            const otherRecap = otherRecapsByStore.get(s.id);
-            return (
-              <StoreHistoryModal
-                key={s.id}
-                storeId={s.id}
-                storeName={s.name}
-              >
-                <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{s.name}</CardTitle>
-                      <Badge
-                        variant={
-                          otherRecap?.status === "submitted"
-                            ? "default"
-                            : "secondary"
-                        }
-                        className="text-xs"
-                      >
-                        {otherRecap?.status ?? "pending"}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {otherRecap ? (
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">
-                          by {otherRecap.smName}
-                        </p>
-                        {otherRecap.answers.slice(0, 1).map((a, i) => (
-                          <div key={i}>
-                            <p className="text-xs font-medium text-muted-foreground">
-                              {a.questionText}
-                            </p>
-                            <p className="text-sm line-clamp-2">
-                              {a.answerText || "—"}
-                            </p>
-                          </div>
-                        ))}
-                        {otherRecap.answers.length > 1 && (
-                          <p className="text-xs text-muted-foreground">
-                            +{otherRecap.answers.length - 1} more answers
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No recap this week
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              </StoreHistoryModal>
-            );
-          })}
-        </div>
-      </div>
+        <OtherStoresGrid stores={otherStores} recapsByStore={otherRecapsByStore} />
+      </section>
     </main>
   );
 }

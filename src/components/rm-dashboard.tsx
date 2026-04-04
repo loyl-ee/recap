@@ -6,8 +6,7 @@ import { ConsolidatedRecapForm } from "@/components/consolidated-recap-form";
 import { QuestionBuilderModal } from "@/components/question-builder-modal";
 import { AdminModal } from "@/components/admin-modal";
 import { WeekNavigator } from "@/components/week-navigator";
-import { StoreHistoryModal } from "@/components/store-history-modal";
-import { StoreRecapExpanded } from "@/components/store-recap-expanded";
+import { RmStoreGrid } from "@/components/rm-store-grid";
 import { RmNoteSummary } from "@/components/rm-note-summary";
 import { PatternFlag } from "@/components/pattern-flag";
 import {
@@ -22,15 +21,7 @@ import {
   getRmNotesForWeek,
 } from "@/app/actions/rm";
 import { detectPatterns } from "@/lib/patterns";
-
-function getCurrentWeekEnding(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const daysUntilSunday = day === 0 ? 0 : 7 - day;
-  const d = new Date(now);
-  d.setDate(now.getDate() + daysUntilSunday);
-  return d.toISOString().split("T")[0];
-}
+import { getCurrentWeekEnding } from "@/lib/utils/date";
 
 export async function RmDashboard({ week }: { week?: string }) {
   const rmRecord = await getRmContext();
@@ -50,24 +41,14 @@ export async function RmDashboard({ week }: { week?: string }) {
       isCurrentWeek ? generateConsolidationPrompt(rmRecord.id) : Promise.resolve(""),
     ]);
 
-  // Get RM's private notes for this week's recaps
   const recapIds = storeRecaps.map((r) => r.id);
   const weekNotes = await getRmNotesForWeek(rmRecord.id, recapIds);
 
-  // Detect cross-store patterns
   const patterns = detectPatterns(
-    storeRecaps.map((r) => ({
-      weekEnding: r.weekEnding,
-      answers: r.answers,
-    }))
+    storeRecaps.map((r) => ({ weekEnding: r.weekEnding, answers: r.answers }))
   );
 
-  // Build store status map
-  const storeStatusMap = new Map(
-    storeRecaps.map((r) => [r.storeId, r])
-  );
-
-  // Separate own vs other RMs' recaps
+  const storeStatusMap = new Map(storeRecaps.map((r) => [r.storeId, r]));
   const otherRmRecaps = allRmRecaps.filter((r) => r.rmId !== rmRecord.id);
 
   return (
@@ -77,14 +58,13 @@ export async function RmDashboard({ week }: { week?: string }) {
           <h1>Dashboard</h1>
           <p className="text-muted-foreground mt-1">{rmRecord.name}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <nav className="flex items-center gap-3" aria-label="Dashboard actions">
           <QuestionBuilderModal rmId={rmRecord.id} stores={stores} />
           <AdminModal regionId={rmRecord.regionId} />
           <SignOutButton />
-        </div>
+        </nav>
       </header>
 
-      {/* Week navigation */}
       <div className="mb-6">
         <WeekNavigator
           currentWeek={weekEnding}
@@ -96,107 +76,26 @@ export async function RmDashboard({ week }: { week?: string }) {
         />
       </div>
 
-      {/* Cross-store pattern flags */}
       {patterns.length > 0 && (
-        <div className="mb-6 space-y-2">
+        <section className="mb-6 space-y-2" aria-label="Recurring themes">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
             Recurring Themes This Week
           </p>
           {patterns.map((p) => (
             <PatternFlag key={p.theme} pattern={p} />
           ))}
-        </div>
+        </section>
       )}
 
-      {/* My Store Recaps */}
-      <div className="mb-8">
+      <section className="mb-8" aria-label="Store recaps">
         <h2 className="mb-4">My Stores</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {stores.map((s) => {
-            const storeRecap = storeStatusMap.get(s.id);
+        <RmStoreGrid rmId={rmRecord.id} stores={stores} recapsByStore={storeStatusMap} />
+      </section>
 
-            const cardContent = (
-              <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{s.name}</CardTitle>
-                    <Badge
-                      variant={
-                        storeRecap?.status === "submitted"
-                          ? "default"
-                          : "secondary"
-                      }
-                      className="text-xs"
-                    >
-                      {storeRecap?.status ?? "pending"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {storeRecap ? (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        by {storeRecap.smName}
-                      </p>
-                      {storeRecap.answers.slice(0, 2).map((a, i) => (
-                        <div key={i}>
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {a.questionText}
-                          </p>
-                          <p className="text-sm line-clamp-2">
-                            {a.answerText || "—"}
-                          </p>
-                        </div>
-                      ))}
-                      {storeRecap.answers.length > 2 && (
-                        <p className="text-xs text-muted-foreground">
-                          +{storeRecap.answers.length - 2} more answers
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No recap submitted yet
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            );
-
-            // If there's a recap, open the expanded view with notes. Otherwise, show history.
-            if (storeRecap) {
-              return (
-                <StoreRecapExpanded
-                  key={s.id}
-                  rmId={rmRecord.id}
-                  recap={storeRecap}
-                >
-                  {cardContent}
-                </StoreRecapExpanded>
-              );
-            }
-
-            return (
-              <StoreHistoryModal
-                key={s.id}
-                storeId={s.id}
-                storeName={s.name}
-              >
-                {cardContent}
-              </StoreHistoryModal>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* RM Notes Summary */}
-      {weekNotes.length > 0 && (
-        <RmNoteSummary notes={weekNotes} />
-      )}
+      {weekNotes.length > 0 && <RmNoteSummary notes={weekNotes} />}
 
       <Separator className="mb-8" />
 
-      {/* Consolidated Recap + AD Notes */}
       {isCurrentWeek && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <ConsolidatedRecapForm
@@ -206,7 +105,6 @@ export async function RmDashboard({ week }: { week?: string }) {
             consolidationPrompt={consolidationPrompt}
             storeRecapIds={storeRecaps.map((r) => r.id)}
           />
-
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">AD Notes</CardTitle>
@@ -219,10 +117,7 @@ export async function RmDashboard({ week }: { week?: string }) {
               ) : (
                 <div className="space-y-3">
                   {adNotes.map((note) => (
-                    <div
-                      key={note.id}
-                      className="rounded-lg bg-secondary/50 px-4 py-3"
-                    >
+                    <div key={note.id} className="rounded-lg bg-secondary/50 px-4 py-3">
                       <p className="text-sm">{note.noteText}</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {new Date(note.createdAt).toLocaleDateString()}
@@ -236,11 +131,10 @@ export async function RmDashboard({ week }: { week?: string }) {
         </div>
       )}
 
-      {/* Other RMs' Recaps */}
       {otherRmRecaps.length > 0 && (
         <>
           <Separator className="mb-8" />
-          <div className="mb-8">
+          <section className="mb-8" aria-label="Other regional managers">
             <h2 className="mb-4">Other Regional Managers</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {otherRmRecaps.map((r) => (
@@ -249,9 +143,7 @@ export async function RmDashboard({ week }: { week?: string }) {
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">{r.rmName}</CardTitle>
                       <Badge
-                        variant={
-                          r.status === "submitted" ? "default" : "secondary"
-                        }
+                        variant={r.status === "submitted" ? "default" : "secondary"}
                         className="text-xs"
                       >
                         {r.status}
@@ -266,7 +158,7 @@ export async function RmDashboard({ week }: { week?: string }) {
                 </Card>
               ))}
             </div>
-          </div>
+          </section>
         </>
       )}
     </main>
